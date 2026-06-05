@@ -1,0 +1,15 @@
+# Environments
+.venv/
+.env
+
+# uv specific files
+.uv/
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# CrewAI runtime / telemetry artifacts
+.crewai/
