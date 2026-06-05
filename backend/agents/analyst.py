@@ -1,21 +1,23 @@
 from crewai import Agent
 
-def create_analyst_agent() -> Agent:
+
+def create_analyst() -> Agent:
     return Agent(
-        role="Strategic Intelligence Analyst",
+        role="Research Analyst",
         goal=(
-            "Synthesize all the summarized information into coherent insights. "
-            "Identify patterns, contradictions, trends, and key themes across sources. "
-            "Draw conclusions that would not be obvious from reading any single source."
+            "Synthesize the summaries from multiple sources into coherent cross-cutting insights. "
+            "Identify major trends, recurring themes, contradictions or tensions between sources, "
+            "and notable gaps in the current body of knowledge. Produce a structured analysis "
+            "that a domain expert would find genuinely useful."
         ),
         backstory=(
-            "You are a strategic analyst with a background in consulting. "
-            "You excel at seeing the big picture, connecting dots across multiple "
-            "information sources, and turning raw information into actionable intelligence. "
-            "You think critically and always consider multiple perspectives."
+            "You are a senior research analyst with a PhD-level ability to synthesize information "
+            "across multiple sources and surface non-obvious insights. You excel at spotting "
+            "patterns, contradictions, and emerging trends that individual sources miss on their own. "
+            "Your analyses are rigorous, evidence-based, and free of unsupported speculation. "
+            "You always ground every claim in specific evidence from the source summaries."
         ),
-        tools=[],
-        llm="gpt-4o-mini",
-        verbose=True,
-        memory=True,
+        verbose=False,
+        allow_delegation=False,
+        max_iter=4,
     )

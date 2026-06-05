@@ -1,0 +1,2 @@
+# Alembic configuration — run `alembic init alembic` to generate the full file,
+# then follow the instructions in README.md to connect it to your database.
