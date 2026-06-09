@@ -1,23 +1,29 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from config import settings
 from auth.models import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Convert string to bytes, generate salt, hash, and decode back to string
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_bytes = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed_bytes.decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    # Verify the plain text string against the stored hashed string
+    return bcrypt.checkpw(
+        plain.encode('utf-8'), 
+        hashed.encode('utf-8')
+    )
 
 
 def create_access_token(user_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode(
         {"sub": str(user_id), "exp": expire, "type": "access"},
         settings.JWT_SECRET_KEY,
@@ -26,7 +32,7 @@ def create_access_token(user_id: int) -> str:
 
 
 def create_refresh_token(user_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     return jwt.encode(
         {"sub": str(user_id), "exp": expire, "type": "refresh"},
         settings.JWT_SECRET_KEY,

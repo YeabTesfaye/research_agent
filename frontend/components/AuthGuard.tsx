@@ -1,31 +1,29 @@
 "use client";
-
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 
-export default function AuthGuard({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-
-  const authenticated = isAuthenticated();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!authenticated) {
+    if (!isAuthenticated()) {
       router.replace("/login");
+    } else {
+      setReady(true);
     }
-  }, [authenticated, router]);
+  }, [router]);
 
-  if (!authenticated) {
+  if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f9f9f7]">
-        <div className="w-5 h-5 border-2 border-[#1a1a18] border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-border border-t-accent animate-spin" />
+          <p className="text-xs text-muted-foreground tracking-wide">Loading…</p>
+        </div>
       </div>
     );
   }
-
   return <>{children}</>;
 }

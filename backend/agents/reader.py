@@ -1,10 +1,11 @@
 from crewai import Agent
 
-def create_reader_agent() -> Agent:
+
+def create_reader() -> Agent:
     return Agent(
-        role="Document Analysis Expert",
+        role="Content Analyst",
         goal=(
-           "Read and summarize each source provided by the Researcher. "
+            "Read and summarize each source provided by the Researcher. "
             "Extract the key facts, data points, arguments, and quotes from each source. "
             "Preserve the source URL as a citation for every piece of information extracted."
         ),
@@ -15,8 +16,7 @@ def create_reader_agent() -> Agent:
             "You never paraphrase in a way that distorts the original meaning, and you always "
             "attribute information to its source with a precise citation."
         ),
-        tools=[],   # no external tools needed - works with researcher output
-        llm="gpt-4o-mini",
         verbose=False,
-        memory=True,
+        allow_delegation=False,
+        max_iter=4,
     )

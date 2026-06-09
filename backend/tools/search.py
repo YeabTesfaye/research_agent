@@ -1,36 +1,35 @@
+from crewai_tools import RagTool
 from tavily import TavilyClient
-from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
-import os
+from config import settings
 
-class SearchInput(BaseModel):
-    query: str = Field(description="The search query to look up")
 
-class WebSearchTool(BaseTool):
-    name: str = "web_search"
+class TavilySearchTool(RagTool):
+    name: str = "tavily_search"
     description: str = (
-        "Search the web for current information on a topic. "
-        "Returns URLs, titles, and content snippets from relevant pages."
+        "Search the web for current, credible information on a given topic. "
+        "Returns a list of results with titles, URLs, and content snippets. "
+        "Use this to find sources for research tasks."
     )
-    args_schema: type[BaseModel] = SearchInput
 
     def _run(self, query: str) -> str:
-        client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-        
-        results = client.search(
+        client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+        response = client.search(
             query=query,
-            search_depth="advanced",  # deeper search
-            max_results=5,
-            include_raw_content=True,  # get full page content
+            search_depth="advanced",
+            max_results=7,
+            include_answer=True,
+            include_raw_content=False,
         )
-        
-        formatted = []
-        for i, result in enumerate(results.get("results", []), 1):
-            formatted.append(
-                f"Source {i}:\n"
-                f"Title: {result.get('title', 'N/A')}\n"
-                f"URL: {result.get('url', 'N/A')}\n"
-                f"Content: {result.get('content', 'N/A')[:2000]}\n"
+
+        results = []
+        if response.get("answer"):
+            results.append(f"Quick answer: {response['answer']}\n")
+
+        for i, r in enumerate(response.get("results", []), 1):
+            results.append(
+                f"[{i}] {r['title']}\n"
+                f"    URL: {r['url']}\n"
+                f"    {r.get('content', '')[:400]}\n"
             )
-        
-        return "\n---\n".join(formatted) if formatted else "No results found."
+
+        return "\n".join(results) if results else "No results found."

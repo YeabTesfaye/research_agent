@@ -2,106 +2,110 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
+import { Button }   from "@/components/ui/button";
+import { Input }    from "@/components/ui/input";
+import { Label }    from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import api from "@/lib/api";
 import { storeTokens } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [showPw,   setShowPw]   = useState(false);
+  const [error,    setError]    = useState("");
+  const [loading,  setLoading]  = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    setError(""); setLoading(true);
     try {
       const { data } = await api.post("/api/auth/login", { email, password });
       storeTokens(data.access_token, data.refresh_token);
       router.push("/dashboard");
-    } catch (err: unknown) {
-      setError((err as { response?: { data?: { detail?: string } } }).response?.data?.detail || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Incorrect email or password.");
+    } finally { setLoading(false); }
+  }
 
   return (
-    <div className="min-h-screen bg-[#f9f9f7] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="w-10 h-10 bg-[#1a1a18] rounded-xl flex items-center justify-center mx-auto mb-4">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="7" stroke="white" strokeWidth="1.5"/>
-              <path d="M5.5 9h7M9 5.5v7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="text-xl font-semibold text-[#1a1a18] mb-1">Welcome back</h1>
-          <p className="text-sm text-[#9b9b96]">Sign in to your Research Agent account</p>
-        </div>
+    <div className="animate-fade-up space-y-6">
+      {/* Heading */}
+      <div className="text-center space-y-1.5">
+        <h1 className="font-display text-3xl text-foreground">Welcome back</h1>
+        <p className="text-sm text-muted-foreground">Sign in to your Research Agent account</p>
+      </div>
 
-        <div className="bg-white border border-[#e8e8e3] rounded-2xl p-6">
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Sign in</CardTitle>
+          <CardDescription>Enter your email and password below</CardDescription>
+        </CardHeader>
+
+        <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="px-3 py-2.5 bg-[#fdf0eb] border border-[#f5c4b3] rounded-lg">
-                <p className="text-sm text-[#993c1d]">{error}</p>
+              <div className="animate-scale-in rounded-lg border border-destructive/20 bg-destructive/5 px-3.5 py-3 text-sm text-destructive">
+                {error}
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-[#3a3a36] mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="w-full px-3 py-2.5 text-sm bg-[#f9f9f7] border border-[#e8e8e3] rounded-lg outline-none focus:border-[#1a1a18] focus:bg-white transition-colors"
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email" type="email" placeholder="you@example.com"
+                value={email} onChange={e => setEmail(e.target.value)}
+                required autoComplete="email" autoFocus
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-[#3a3a36]">
-                  Password
-                </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-[#6b6b66] hover:text-[#1a1a18] transition-colors"
+                  className="text-xs text-muted-foreground underline-offset-3 hover:text-foreground hover:underline transition-colors"
                 >
                   Forgot password?
                 </Link>
               </div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full px-3 py-2.5 text-sm bg-[#f9f9f7] border border-[#e8e8e3] rounded-lg outline-none focus:border-[#1a1a18] focus:bg-white transition-colors"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password} onChange={e => setPassword(e.target.value)}
+                  required autoComplete="current-password" className="pr-10"
+                />
+                <button
+                  type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none"
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-[#1a1a18] text-white text-sm font-medium rounded-lg hover:bg-[#2a2a26] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </button>
+            <Button type="submit" disabled={loading} size="lg" className="w-full mt-2 gap-2">
+              {loading
+                ? <><Loader2 className="h-4 w-4 animate-spin" />Signing in…</>
+                : <><span>Sign in</span><ArrowRight className="h-4 w-4" /></>}
+            </Button>
           </form>
-        </div>
+        </CardContent>
 
-        <p className="mt-4 text-center text-sm text-[#9b9b96]">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-[#1a1a18] font-medium hover:underline">
-            Create one
-          </Link>
-        </p>
-      </div>
+        <CardFooter className="justify-center pt-2 pb-6">
+          <p className="text-sm text-muted-foreground">
+            No account?{" "}
+            <Link href="/register" className="font-medium text-foreground underline-offset-3 hover:underline">
+              Create one free
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
