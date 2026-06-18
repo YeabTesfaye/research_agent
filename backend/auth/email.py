@@ -3,7 +3,9 @@ import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from config import settings
 from auth.models import User
 
@@ -14,12 +16,10 @@ def generate_reset_token() -> str:
 
 def send_reset_email(to_email: str, reset_token: str):
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
-
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "Reset your Research Agent password"
     msg["From"] = settings.FROM_EMAIL
     msg["To"] = to_email
-
     html = f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -46,24 +46,22 @@ def send_reset_email(to_email: str, reset_token: str):
     </body>
     </html>
     """
-
     msg.attach(MIMEText(html, "html"))
-
     with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.FROM_EMAIL, to_email, msg.as_string())
 
 
-def initiate_password_reset(db: Session, email: str) -> bool:
-    user = db.query(User).filter(User.email == email).first()
+async def initiate_password_reset(db: AsyncSession, email: str) -> bool:
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
     if not user:
         return True  # Don't leak whether email exists
-
     token = generate_reset_token()
     user.password_reset_token = token
     user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
-    db.commit()
-
-    send_reset_email(email, token)
+    await db.commit()
+    # Run blocking SMTP in a thread so it doesn't block the event loop
+    await asyncio.to_thread(send_reset_email, email, token)
     return True

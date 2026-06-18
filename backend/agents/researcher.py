@@ -1,8 +1,7 @@
 from crewai import Agent
 from tools.search import TavilySearchTool
 
-
-def create_researcher() -> Agent:
+def create_researcher(llm: str) -> Agent:
     return Agent(
         role="Research Specialist",
         goal=(
@@ -17,6 +16,7 @@ def create_researcher() -> Agent:
             "You never cite a source without verifying its URL and relevance."
         ),
         tools=[TavilySearchTool()],
+        llm=llm,
         verbose=False,
         allow_delegation=False,
         max_iter=5,

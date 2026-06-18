@@ -1,15 +1,35 @@
+import os
+os.environ["OPENAI_API_KEY"] = "ollama"
+os.environ["OPENAI_API_BASE"] = os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1")
+
+
 from crewai import Crew, Task, Process
+from langchain_openai import ChatOpenAI
 from agents.researcher import create_researcher
 from agents.reader import create_reader
 from agents.analyst import create_analyst
 from agents.writer import create_writer
 
 
+def get_ollama_llm() -> ChatOpenAI:
+    return ChatOpenAI(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        base_url=os.getenv("OPENAI_API_BASE", "http://localhost:11434/v1"),
+        api_key="ollama",
+        temperature=0.7,
+    )
+
+
 def run_research(topic: str) -> str:
-    researcher = create_researcher()
-    reader = create_reader()
-    analyst = create_analyst()
-    writer = create_writer()
+
+    model = os.getenv("OLLAMA_MODEL", "llama3.2")
+
+    llm = get_ollama_llm()
+
+    researcher = create_researcher(llm=model)
+    reader     = create_reader(llm=model)
+    analyst    = create_analyst(llm=model)
+    writer     = create_writer(llm=model)
 
     task_research = Task(
         description=(

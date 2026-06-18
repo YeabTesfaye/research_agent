@@ -1,7 +1,7 @@
 from crewai import Agent
+from langchain_openai import ChatOpenAI
 
-
-def create_analyst() -> Agent:
+def create_analyst(llm: str) -> Agent:
     return Agent(
         role="Research Analyst",
         goal=(
@@ -17,6 +17,7 @@ def create_analyst() -> Agent:
             "Your analyses are rigorous, evidence-based, and free of unsupported speculation. "
             "You always ground every claim in specific evidence from the source summaries."
         ),
+        llm=llm,
         verbose=False,
         allow_delegation=False,
         max_iter=4,

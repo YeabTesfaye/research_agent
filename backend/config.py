@@ -1,4 +1,7 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -8,7 +11,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str = "ollama"
+    OPENAI_API_BASE: str = "http://localhost:11434/v1"   # new
+    OLLAMA_MODEL: str = "llama3.2"                       # new
     TAVILY_API_KEY: str
     SMTP_HOST: str
     SMTP_PORT: int = 587
@@ -18,7 +23,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
 
 
 settings = Settings()

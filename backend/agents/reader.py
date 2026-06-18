@@ -1,7 +1,7 @@
 from crewai import Agent
+from langchain_openai import ChatOpenAI
 
-
-def create_reader() -> Agent:
+def create_reader(llm:str) -> Agent:
     return Agent(
         role="Content Analyst",
         goal=(
@@ -16,6 +16,7 @@ def create_reader() -> Agent:
             "You never paraphrase in a way that distorts the original meaning, and you always "
             "attribute information to its source with a precise citation."
         ),
+        llm=llm,
         verbose=False,
         allow_delegation=False,
         max_iter=4,

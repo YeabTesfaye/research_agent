@@ -37,22 +37,44 @@ export default function DashboardPage() {
   const [topic, setTopic]             = useState("");
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
-  const [activeReport, setActive]     = useState<{ id: number; status: string; topic: string } | null>(null);
+  const [activeReport, setActive]     = useState<{ id: number; status: string; topic: string, error? : string } | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   function startPolling(id: number, t: string) {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      try {
-        const { data } = await api.get(`/api/reports/${id}`);
-        setActive({ id: data.id, status: data.status, topic: t });
-        if (data.status === "completed") { clearInterval(pollRef.current!); router.push(`/reports/${id}`); }
-        else if (data.status === "failed") clearInterval(pollRef.current!);
-      } catch { clearInterval(pollRef.current!); }
-    }, 5000);
-  }
+  if (pollRef.current) clearInterval(pollRef.current);
+  pollRef.current = setInterval(async () => {
+    try {
+      const { data } = await api.get(`/api/reports/${id}`);
+      console.log("Polling report data:", data); // Logs current agent progress
+      
+      // Update active report status and include any error message from the backend
+      setActive({ 
+        id: data.id, 
+        status: data.status, 
+        topic: t, 
+        error: data.error_message || data.error 
+      });
+
+      if (data.status === "completed") { 
+        clearInterval(pollRef.current!); 
+        router.push(`/reports/${id}`); 
+      }
+      else if (data.status === "failed") {
+        console.error("Backend agent pipeline failed:", data.error_message || data.error);
+        setError(data.error_message || "The research pipeline failed to complete.");
+        clearInterval(pollRef.current!);
+      }
+    } catch (err: any) {
+      // CRITICAL: Previously empty. This now catches network/API errors.
+      console.error("Polling API communication error:", err);
+      setError(err.response?.data?.detail || "Lost connection while checking status.");
+      clearInterval(pollRef.current!);
+    }
+  }, 5000);
+}
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,11 +83,14 @@ export default function DashboardPage() {
     setError(""); setLoading(true);
     try {
       const { data } = await api.post("/api/reports/", { topic: t });
-      setActive({ id: data.id, status: data.status, topic: data.topic });
+      console.log(data)
+      // setActive({ id: data.id, status: data.status, topic: data.topic });
+      setActive({ id: data.id, status: data.status, topic: data.topic, error: data.error_message });
       setTopic("");
       startPolling(data.id, data.topic);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to start research. Try again.");
+       console.error("Failed to initiate research request:", err); // Added for deep debugging
+       setError(err.response?.data?.detail || "Failed to start research. Try again.");
     } finally { setLoading(false); }
   }
 
@@ -201,10 +226,22 @@ export default function DashboardPage() {
                   <Clock className="h-3.5 w-3.5" />View in history
                 </Button>
                 {activeReport.status === "failed" && (
+                  <>
                   <Button size="sm" onClick={() => setActive(null)}>
-                    Start over
+                    {activeReport.error || "Check your OpenAI and Tavily API keys, then try again."}
                   </Button>
+                  <Button>
+                    {activeReport && error && (
+                    <div className="mt-4 p-4 rounded-xl border border-destructive/20 bg-destructive/10 text-sm text-destructive">
+                      <p className="font-semibold">An error occurred:</p>
+                      <p>{error}</p>
+                    </div>
+                  )}
+                  </Button>
+                  </>
                 )}
+
+       
               </div>
             </div>
           )}

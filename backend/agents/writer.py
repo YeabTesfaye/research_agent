@@ -1,7 +1,7 @@
 from crewai import Agent
+from langchain_openai import ChatOpenAI
 
-
-def create_writer() -> Agent:
+def create_writer(llm: str) -> Agent:
     return Agent(
         role="Technical Report Writer",
         goal=(
@@ -19,6 +19,7 @@ def create_writer() -> Agent:
             "sections, and citations that build credibility without cluttering the prose. "
             "You always produce valid, well-formatted markdown."
         ),
+        llm=llm,
         verbose=False,
         allow_delegation=False,
         max_iter=3,

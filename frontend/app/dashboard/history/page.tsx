@@ -1,65 +1,99 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Clock, FileText, History,
-  Loader2, Plus, RefreshCw, Trash2,
+  Loader2, Plus, RefreshCw, Trash2, Search,
+  AlertCircle, CheckCircle2, Timer, XCircle,
 } from "lucide-react";
-import AuthGuard   from "@/components/AuthGuard";
-import NavBar      from "@/components/NavBar";
-import { Button }  from "@/components/ui/button";
-import { Badge }   from "@/components/ui/badge";
+import AuthGuard    from "@/components/AuthGuard";
+import NavBar       from "@/components/NavBar";
+import { Button }   from "@/components/ui/button";
+import { Badge }    from "@/components/ui/badge";
+import { Input }    from "@/components/ui/input";
+import { toast } from "sonner";
+import { reportsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import api from "@/lib/api";
 
 interface Report {
   id: number; topic: string; status: string;
   created_at: string; completed_at: string | null;
 }
 
-const STATUS_VARIANT: Record<string, "completed"|"running"|"pending"|"failed"> = {
-  completed: "completed", running: "running", pending: "pending", failed: "failed",
+const STATUS_META: Record<string, {
+  variant: "completed"|"running"|"pending"|"failed";
+  icon: React.ElementType;
+  label: string;
+}> = {
+  completed: { variant: "completed", icon: CheckCircle2,  label: "Completed" },
+  running:   { variant: "running",   icon: Loader2,        label: "Running"   },
+  pending:   { variant: "pending",   icon: Timer,          label: "Pending"   },
+  failed:    { variant: "failed",    icon: XCircle,        label: "Failed"    },
 };
-
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function fmtRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)   return "just now";
-  if (m < 60)  return `${m}m ago`;
+  if (m < 1)  return "just now";
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
+  if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
-  if (d < 7)   return `${d}d ago`;
-  return fmt(iso);
+  if (d < 7)  return `${d}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3.5 rounded-xl border border-border bg-card p-4">
+      <div className="skeleton h-9 w-9 rounded-lg shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="skeleton h-3.5 w-2/3 rounded" />
+        <div className="skeleton h-3 w-1/3 rounded" />
+      </div>
+      <div className="skeleton h-5 w-16 rounded-full" />
+    </div>
+  );
 }
 
 export default function HistoryPage() {
   const router = useRouter();
   const [reports,  setReports]  = useState<Report[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<Set<number>>(new Set());
+  const [query,    setQuery]    = useState("");
+  const [filter,   setFilter]   = useState<string>("all");
 
-  async function fetchReports() {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
-    try { const { data } = await api.get("/api/reports/"); setReports(data); }
-    catch {}
-    finally { setLoading(false); }
-  }
+    try {
+      const { data } = await reportsApi.list();
+      setReports(data);
+    } catch {
+      toast.error("Failed to load", {
+      description: "Could not fetch your reports.",
+    });
+    } finally { setLoading(false); }
+  }, []);
 
-  useEffect(() => { fetchReports(); }, []);
+  useEffect(() => { fetchReports(); }, [fetchReports]);
 
   async function handleDelete(e: React.MouseEvent, id: number) {
     e.stopPropagation();
     if (!confirm("Delete this report? This cannot be undone.")) return;
-    setDeleting(id);
-    try { await api.delete(`/api/reports/${id}`); setReports(p => p.filter(r => r.id !== id)); }
-    catch {}
-    finally { setDeleting(null); }
+    setDeleting(p => new Set(p).add(id));
+    try {
+      await reportsApi.delete(id);
+      setReports(p => p.filter(r => r.id !== id));
+      toast.success("Report deleted");
+    } catch {
+      toast.error("Failed to delete", {
+       description: "Please try again.",
+      });
+    } finally {
+      setDeleting(p => { const next = new Set(p); next.delete(id); return next; });
+    }
   }
 
   function handleRowClick(r: Report) {
@@ -67,29 +101,44 @@ export default function HistoryPage() {
     else if (r.status === "running" || r.status === "pending") router.push("/dashboard");
   }
 
-  const completed = reports.filter(r => r.status === "completed").length;
+  // Filter + search
+  const filtered = reports.filter(r => {
+    const matchSearch = !query || r.topic.toLowerCase().includes(query.toLowerCase());
+    const matchFilter = filter === "all" || r.status === filter;
+    return matchSearch && matchFilter;
+  });
+
+  const counts = reports.reduce((acc, r) => {
+    acc[r.status] = (acc[r.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const FILTERS = [
+    { key: "all",       label: "All",       count: reports.length },
+    { key: "completed", label: "Completed", count: counts.completed || 0 },
+    { key: "running",   label: "Active",    count: (counts.running || 0) + (counts.pending || 0) },
+    { key: "failed",    label: "Failed",    count: counts.failed || 0 },
+  ].filter(f => f.key === "all" || f.count > 0);
 
   return (
     <AuthGuard>
       <div className="min-h-screen bg-background">
         <NavBar />
-        <main className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:px-6">
+        <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
 
           {/* Header */}
-          <div className="animate-fade-up mb-8 flex items-start justify-between gap-4">
+          <div className="animate-fade-up mb-6 flex items-start justify-between gap-4">
             <div>
               <div className="mb-1 flex items-center gap-2">
                 <History className="h-4 w-4 text-muted-foreground" />
                 <h1 className="text-xl font-semibold tracking-tight">Research history</h1>
               </div>
-              {!loading && (
-                <p className="text-sm text-muted-foreground">
-                  {reports.length} {reports.length === 1 ? "report" : "reports"}
-                  {completed > 0 && ` · ${completed} completed`}
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                {reports.length} {reports.length === 1 ? "report" : "reports"}
+                {counts.completed ? ` · ${counts.completed} completed` : ""}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button variant="ghost" size="icon-sm" onClick={fetchReports}
                 disabled={loading} aria-label="Refresh" className="text-muted-foreground">
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
@@ -100,11 +149,41 @@ export default function HistoryPage() {
             </div>
           </div>
 
+          {/* Search + filter */}
+          {reports.length > 0 && (
+            <div className="animate-fade-up delay-75 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search reports…"
+                  value={query} onChange={e => setQuery(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 sm:pb-0">
+                {FILTERS.map(({ key, label, count }) => (
+                  <button key={key} onClick={() => setFilter(key)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all",
+                      filter === key
+                        ? "border-primary/30 bg-secondary text-foreground shadow-sm"
+                        : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                    )}>
+                    {label}
+                    <span className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[10px]",
+                      filter === key ? "bg-background" : "bg-secondary"
+                    )}>{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Content */}
           {loading ? (
-            <div className="flex flex-col items-center gap-3 py-24">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Loading reports…</p>
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
             </div>
           ) : reports.length === 0 ? (
             <div className="animate-fade-up flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border py-20 text-center">
@@ -113,7 +192,7 @@ export default function HistoryPage() {
               </div>
               <div>
                 <p className="font-semibold">No reports yet</p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground max-w-xs mx-auto">
                   Start your first research and it'll appear here.
                 </p>
               </div>
@@ -121,27 +200,39 @@ export default function HistoryPage() {
                 <Link href="/dashboard"><Plus className="h-3.5 w-3.5" />Start researching</Link>
               </Button>
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <Search className="h-8 w-8 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">No reports match "{query}"</p>
+              <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setFilter("all"); }}>
+                Clear search
+              </Button>
+            </div>
           ) : (
             <ul className="space-y-2">
-              {reports.map((r, i) => {
-                const variant  = STATUS_VARIANT[r.status] ?? "pending";
+              {filtered.map((r, i) => {
+                const meta = STATUS_META[r.status] ?? STATUS_META.pending;
+                const { icon: StatusIcon } = meta;
                 const clickable = r.status === "completed" || r.status === "running" || r.status === "pending";
+                const isDeleting = deleting.has(r.id);
 
                 return (
-                  <li
-                    key={r.id}
+                  <li key={r.id}
                     onClick={() => handleRowClick(r)}
                     className={cn(
                       "group animate-fade-up relative flex items-center gap-3.5 rounded-xl border border-border bg-card p-4",
                       "transition-all duration-200",
-                      i === 0 && "delay-75",  i === 1 && "delay-100",
-                      i === 2 && "delay-150", i === 3 && "delay-200",
+                      i <= 4 && `delay-${(i + 1) * 50}`,
                       clickable && "cursor-pointer hover:border-border/80 hover:shadow-card-hover",
-                      !clickable && "opacity-60 cursor-default"
+                      isDeleting && "opacity-50 pointer-events-none",
+                      r.status === "failed" && "opacity-70"
                     )}
                   >
-                    {/* Icon */}
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                    {/* Left icon */}
+                    <div className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary transition-colors",
+                      r.status === "completed" && "group-hover:bg-emerald-subtle/60",
+                    )}>
                       <FileText className="h-4 w-4 text-muted-foreground" />
                     </div>
 
@@ -149,44 +240,43 @@ export default function HistoryPage() {
                     <div className="flex-1 min-w-0">
                       <p className="truncate text-sm font-medium leading-snug">{r.topic}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge variant={variant} className="capitalize text-[10px] py-0 h-4">
-                          {r.status === "running" && (
-                            <span className="mr-1 h-1.5 w-1.5 rounded-full bg-accent animate-breathe inline-block" />
-                          )}
-                          {r.status}
-                        </Badge>
                         <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
-                          <Clock className="h-2.5 w-2.5" />
+                          <Clock className="h-2.5 w-2.5 shrink-0" />
                           {fmtRelative(r.created_at)}
                         </span>
-                        {r.completed_at && (
+                        {r.completed_at && r.status === "completed" && (
                           <span className="hidden text-xs text-muted-foreground/50 sm:block">
-                            · Completed {fmt(r.completed_at)}
+                            · done {fmtRelative(r.completed_at)}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Status + actions */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={meta.variant} className="capitalize text-[10px] py-0 h-5 hidden sm:inline-flex">
+                        {r.status === "running" && (
+                          <span className="mr-0.5 h-1.5 w-1.5 rounded-full bg-accent animate-breathe inline-block" />
+                        )}
+                        {meta.label}
+                      </Badge>
                       <button
                         onClick={e => handleDelete(e, r.id)}
-                        disabled={deleting === r.id}
-                        aria-label="Delete report"
+                        disabled={isDeleting}
+                        aria-label={`Delete "${r.topic}"`}
                         className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-md",
-                          "text-muted-foreground/40 transition-all",
-                          "opacity-0 group-hover:opacity-100",
+                          "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/40",
+                          "transition-all opacity-0 group-hover:opacity-100",
                           "hover:bg-destructive/8 hover:text-destructive",
                           "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         )}
                       >
-                        {deleting === r.id
+                        {isDeleting
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
                       {r.status === "completed" && (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground/50 transition-transform duration-150 group-hover:translate-x-0.5" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
                       )}
                     </div>
                   </li>

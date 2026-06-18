@@ -10,10 +10,25 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    bio = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     password_reset_token = Column(String, nullable=True)
     password_reset_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
-
     reports = relationship("Report", back_populates="user")
+
+    # Password rese
+    password_reset_token = Column(String, nullable=True)
+    password_reset_expires = Column(DateTime, nullable=True)
+
+    # Preferences
+    email_notifications = Column(Boolean, default=True, nullable=False)
+    report_complete_email = Column(Boolean, default=True, nullable=False)
+    weekly_digest = Column(Boolean, default=True, nullable=False)
+
+    # Audit
+    created_at = Column(DateTime, server_default=func.now())
+    last_login = Column(DateTime, nullable=True)
+    reports = relationship("Report", back_populates="user", cascade="all, delete-orphan")
