@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 
@@ -15,5 +15,6 @@ class Report(Base):
     job_id = Column(String(50), unique=True, index=True)
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
+    current_agent: Mapped[str | None] = mapped_column(String, nullable=True)
 
     user = relationship("User", back_populates="reports")

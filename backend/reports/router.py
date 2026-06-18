@@ -22,47 +22,90 @@ async def create_report(
 ):
     if not payload.topic or len(payload.topic.strip()) < 3:
         raise HTTPException(status_code=400, detail="Topic must be at least 3 characters.")
-    job_id = str(uuid.uuid4())
+
     report = models.Report(
         user_id=current_user.id,
         topic=payload.topic.strip(),
-        job_id=job_id,
+        job_id=str(uuid.uuid4()),
         status="pending",
     )
     db.add(report)
     await db.commit()
     await db.refresh(report)
+
     background_tasks.add_task(run_report_job, report.id, payload.topic.strip())
     return report
 
 
 async def run_report_job(report_id: int, topic: str):
+    """
+    Runs in the background. Opens its own DB session since the
+    request-scoped session is already closed by the time this runs.
+    crew.py's run_research() is synchronous (CrewAI/LiteLLM), so we
+    offload it to a thread executor to avoid blocking the event loop.
+    Per-agent progress is tracked via a callback passed into run_research.
+    """
     async with AsyncSessionLocal() as db:
-        report = None
-        try:
-            result = await db.execute(
-                select(models.Report).where(models.Report.id == report_id)
+        # ── helper: update report fields ──────────────────────────
+        async def set_status(status: str, agent: str | None = None):
+            await db.execute(
+                models.Report.__table__.update()
+                .where(models.Report.id == report_id)
+                .values(
+                    status=status,
+                    **({"current_agent": agent} if agent is not None else {}),
+                )
             )
-            report = result.scalar_one_or_none()
-            if not report:
-                return
-            report.status = "running"
             await db.commit()
 
-            # run_research is blocking — run it in a thread pool
-            loop = asyncio.get_event_loop()
-            content = await loop.run_in_executor(None, run_research, topic)
+        # ── callback passed to crew.py ─────────────────────────────
+        # CrewAI runs synchronously in a thread, so we use
+        # run_coroutine_threadsafe to reach back into the async loop.
+        loop = asyncio.get_event_loop()
 
-            report.status = "completed"
-            report.content = content
-            report.completed_at = datetime.utcnow()
+        def on_agent_change(agent_name: str):
+            """Called synchronously from inside the executor thread."""
+            asyncio.run_coroutine_threadsafe(
+                set_status("running", agent_name), loop
+            )
+
+        try:
+            await set_status("running", "researcher")
+
+            # run_research is blocking — offload to thread pool
+            content = await loop.run_in_executor(
+                None,
+                run_research,   # func
+                topic,          # arg 1
+                on_agent_change # arg 2 — progress callback
+            )
+
+            await db.execute(
+                models.Report.__table__.update()
+                .where(models.Report.id == report_id)
+                .values(
+                    status="completed",
+                    current_agent=None,
+                    content=content,
+                    completed_at=datetime.utcnow(),
+                )
+            )
+            await db.commit()
+
         except Exception as e:
-            if report:
-                report.status = "failed"
-                report.error_message = str(e)
-        finally:
+            await db.execute(
+                models.Report.__table__.update()
+                .where(models.Report.id == report_id)
+                .values(
+                    status="failed",
+                    current_agent=None,
+                    error_message=str(e),
+                )
+            )
             await db.commit()
 
+
+# ── Read endpoints (unchanged) ─────────────────────────────────────
 
 @router.get("/", response_model=list[schemas.ReportSummary])
 async def list_reports(

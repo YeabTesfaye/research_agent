@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str
     FROM_EMAIL: str
     FRONTEND_URL: str = "http://localhost:3000"
+    GEMINI_API_KEY : str 
 
     class Config:
         env_file = str(ENV_FILE)

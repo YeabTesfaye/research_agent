@@ -16,6 +16,11 @@ interface AgentDef {
   iconBg: string;
 }
 
+interface Props {
+  status : string
+  currentAgent? : string | null
+}
+
 const AGENTS: AgentDef[] = [
   {
     key: "researcher",
@@ -63,7 +68,7 @@ interface Props {
   status: string;
 }
 
-export default function AgentProgress({ status }: Props) {
+export default function AgentProgress({ status, currentAgent }: Props) {
   const isDone   = status === "completed";
   const isFailed = status === "failed";
   const isActive = status === "running" || status === "pending";
@@ -73,33 +78,39 @@ export default function AgentProgress({ status }: Props) {
       {AGENTS.map((agent, i) => {
         const { Icon, name, role, description, spinnerClass, doneClass, iconBg } = agent;
 
+        const agentIndex    = AGENTS.findIndex(a => a.key === currentAgent);
+        const thisIndex     = i;
+        const isThisActive  = !isDone && !isFailed && agent.key === currentAgent;
+        const isThisDone    = isDone || thisIndex < agentIndex;
+        const isThisWaiting = !isThisActive && !isThisDone && !isFailed;
+
         return (
           <div
             key={agent.key}
-            className={cn(
+           className={cn(
               "relative flex items-start gap-3.5 rounded-xl border p-4 transition-all duration-300",
               "animate-fade-up",
               i === 0 && "delay-75",
               i === 1 && "delay-150",
               i === 2 && "delay-200",
               i === 3 && "delay-250",
-              isDone   && "border-emerald/20 bg-emerald-subtle/25",
-              isFailed && "border-border bg-background opacity-60",
-              isActive && "border-border bg-card shadow-card",
-              !isDone && !isFailed && !isActive && "border-border/50 bg-background"
+              isThisDone   && "border-emerald/20 bg-emerald-subtle/25",
+              isFailed     && "border-border bg-background opacity-60",
+              isThisActive && "border-accent/30 bg-card shadow-card ring-1 ring-accent/20",
+              isThisWaiting && "border-border/50 bg-background opacity-50"
             )}
           >
             {/* Status icon */}
-            <div className={cn(
+             <div className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all",
-              isDone   && "bg-emerald/10",
-              isFailed && "bg-secondary",
-              isActive && iconBg,
-              !isDone && !isFailed && !isActive && "bg-secondary"
+              isThisDone   && "bg-emerald/10",
+              isFailed     && "bg-secondary",
+              isThisActive && iconBg,
+              isThisWaiting && "bg-secondary"
             )}>
-              {isDone ? (
+              {isThisDone ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald" strokeWidth={2} />
-              ) : isActive ? (
+              ) : isThisActive ? (
                 <Loader2 className={cn("h-4 w-4 animate-spin", spinnerClass)} strokeWidth={2} />
               ) : (
                 <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.8} />
@@ -111,7 +122,7 @@ export default function AgentProgress({ status }: Props) {
               <div className="flex items-baseline gap-2 mb-0.5">
                 <span className={cn(
                   "text-sm font-semibold leading-none tracking-tight",
-                  isDone ? "text-emerald" : "text-foreground"
+                  isThisDone ? "text-emerald" : isThisActive ? "text-foreground" : "text-muted-foreground"
                 )}>
                   {name}
                 </span>
@@ -123,8 +134,8 @@ export default function AgentProgress({ status }: Props) {
 
             {/* Status indicator */}
             <div className="shrink-0 flex items-center gap-1 pt-0.5">
-              {isDone && <span className="text-xs font-medium text-emerald">Done</span>}
-              {isActive && (
+              {isThisDone && <span className="text-xs font-medium text-emerald">Done</span>}
+              {isThisActive && (
                 <span className="flex gap-[3px] items-center">
                   {[0, 1, 2].map((d) => (
                     <span key={d}
@@ -133,7 +144,7 @@ export default function AgentProgress({ status }: Props) {
                   ))}
                 </span>
               )}
-              {!isDone && !isActive && (
+              {isThisWaiting && (
                 <Clock className="h-3.5 w-3.5 text-muted-foreground/30" />
               )}
             </div>
@@ -148,22 +159,25 @@ export default function AgentProgress({ status }: Props) {
         );
       })}
 
-      {isActive && (
+        {!isDone && !isFailed && currentAgent && (
         <p className="animate-fade-in text-center text-xs text-muted-foreground pt-1">
-          Polling every 5 s — reports typically take 3–5 minutes.
+          {currentAgent === "researcher" && "Searching the web for sources…"}
+          {currentAgent === "reader"     && "Reading and extracting facts from each source…"}
+          {currentAgent === "analyst"    && "Synthesizing trends and cross-referencing sources…"}
+          {currentAgent === "writer"     && "Writing the final report…"}
         </p>
       )}
-
-      {isFailed && (
+       {isFailed && (
         <div className="animate-fade-in rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
           <p className="text-sm font-medium text-destructive flex items-center gap-2">
             <XCircle className="h-4 w-4 shrink-0" />Research job failed
           </p>
           <p className="text-xs text-destructive/70 mt-1 ml-6">
-            Check your OpenAI and Tavily API keys, then try again.
+            Check your Tavily API key and LLM config, then try again.
           </p>
         </div>
       )}
     </div>
+
   );
 }

@@ -1,5 +1,4 @@
 from crewai import Agent
-from langchain_openai import ChatOpenAI
 
 def create_analyst(llm: str) -> Agent:
     return Agent(

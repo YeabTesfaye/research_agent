@@ -1,5 +1,5 @@
 from crewai import Agent
-from langchain_openai import ChatOpenAI
+
 
 def create_writer(llm: str) -> Agent:
     return Agent(

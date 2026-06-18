@@ -1,7 +1,6 @@
 from crewai import Agent
-from langchain_openai import ChatOpenAI
 
-def create_reader(llm:str) -> Agent:
+def create_reader(llm: str) -> Agent:
     return Agent(
         role="Content Analyst",
         goal=(

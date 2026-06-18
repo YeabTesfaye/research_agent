@@ -119,7 +119,7 @@ export default function NavBar() {
                 </div>
 
                 {/* Menu items */}
-                <div className="p-1">
+                {/* <div className="p-1">
                   <Link href="/settings/profile"
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
@@ -132,7 +132,7 @@ export default function NavBar() {
                   >
                     <Settings className="h-4 w-4" />Settings
                   </Link>
-                </div>
+                </div> */}
 
                 <div className="p-1 border-t border-border/50">
                   <button onClick={handleLogout}
